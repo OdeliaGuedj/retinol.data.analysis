@@ -1,0 +1,3057 @@
+---
+header-includes: \usepackage{graphicx}
+title: 'Devoir 1: Mise à niveau en statistiques'
+author: "Odélia Guedj"
+date: "03/11/2019"
+output: 
+  pdf_document: 
+    toc: true
+    keep_tex: yes
+---
+# 1. Contexte
+Certaines études d'observation suggèrent qu'un faible apport alimentaire ou une faible concentration en retinol, bêta-carotène ou d'autres carténoïdes pourraient être associé avec une augmentation du risque de developper certain types de cancer.
+
+Cependant, relativement peu d'études ont enquêté sur le lien entre, d'une part les caractérisiques personnelles et les facteurs d'ordres alimentaires et d'autre part, la concentration plasmatique en retinol, bêta-carotène et d'autres carténoïdes.
+ 
+Les sujets de l'étude, $(n = 315)$ sont des patients ayant subit une intervention chirurgicale non urgente pendant une période de 3 ans et ayant pour but la biopsie ou l'ablation d'une lésion du poumon, du colon, du sein, de la peau, des ovaires ou de l'uterus s'étant avérée non cancéreuse.
+
+# 2. Packages, données
+## 2.1 Packages
+```{r, warning=F}
+library(tidyverse)
+library(ggplot2)
+library(GGally)
+library(corrplot)
+library(questionr)
+library(RColorBrewer)
+library(psy)
+library(kableExtra)
+library(tinytex)
+library(xtable)
+```
+
+## 2.2 Importation des données
+```{r}
+setwd(dir = "C:/Users/odeli/Desktop/Devoir1")
+retinol = read.csv2("presentationTPretinol.csv", header = T, sep = ";")
+```
+
+## 2.3 Vérification des types des variables
+Le jeu de données rétinol est composé de 315 sujets et de 14 variables:
+
+* `age` : Age (en années)
+* `sexe` : 1=Masculin, 2=Féminin
+* `tabac` : 1 = jamais, 2 = autrefois, 3 = actuellement
+* `bmi` : $poids\over{(taille^2)}$
+* `vitamines` : 1 = oui souvent, 2 = oui pas souvent, 3 = non
+* `calories` : Nombre de calories par jour
+* `graisses` : Grammes de graisse consommés par jour
+* `fibres` : Grammes de fibre consommés par jour
+* `alcool` : Nombre de verres d'alcool consommés par semaine
+* `cholesterol` : Cholesterol consommé (mg par jour)
+* `betadiet` : beta-carotene consommé (mcg par jour)
+* `retdiet` : retinol consommé (mcg par jour)
+* `betplasma` : beta-carotene plasmatique (ng/ml)
+* `retplasma` : Retinol plasmatique (ng/ml)
+
+On remarque que les variables catégorielles ont été considérées comme des entiers: sexe, vitamines, tabac.... Il faut y remedier:
+
+```{r}
+retinol$sexe = as.factor(retinol$sexe)
+levels(retinol$sexe) = c("Hommes", "Femmes")
+retinol$sexe = relevel(retinol$sexe, ref = "Hommes")
+retinol$tabac = as.factor(retinol$tabac)
+levels(retinol$tabac) = c("Jamais", "Autrefois", "Fumeur")
+retinol$tabac = relevel(retinol$tabac, ref = "Jamais")
+retinol$vitamine = as.factor(retinol$vitamine)
+levels(retinol$vitamine) = c("Souvent", "Pas-souvent", "Non" )
+retinol$vitamine = relevel(retinol$vitamine, ref = "Non")
+```
+
+## 2.4 Vue globale et chiffrée des données
+
+### 2.4.1 Variables quantitatives
+
+```{r}
+names = c("Âge","BMI","Calories","Graisses","Fibres","Alcool","Cholesterol",
+            "Bêta-carotène","Rétinol","Bêta-carotène plasmatique", "Rétinol plasmatique")
+type_l = lapply(retinol[,c(1,4,6:14)], class)
+min_l = lapply(retinol[,c(1,4,6:14)], min)
+max_l = lapply(retinol[,c(1,4,6:14)], max)
+sd_l = lapply(retinol[,c(1,4,6:14)], sd)
+median_l = lapply(retinol[,c(1,4,6:14)], median)
+mean_l = lapply(retinol[,c(1,4,6:14)], mean)
+
+type = c()
+min = c()
+sd = c()
+median = c()
+mean = c()
+max = c()
+
+for(i in 1:11){
+  type[i] = type_l[[i]]
+  min[i] = min_l[[i]]
+  max[i] = max_l[[i]]
+  sd[i] = sd_l[[i]]
+  median[i] = median_l[[i]]
+  mean[i] = mean_l[[i]]
+}
+
+na = c()
+j = 1
+for(i in c(1,4,6:14)){
+  na[j] = length(which(is.na(retinol[,i])))
+  j = j+1}
+
+desc_var_quant = cbind(names, type, round(mean,2), 
+                       round(sd,2), round(median,2), 
+                       round(min,2), round(max,2), na )
+colnames(desc_var_quant) = c("Variables","Type","Mean",
+                             "Standard Deviation","Median","Min","Max", "NA")
+
+kable(desc_var_quant, 
+      caption = "Tableau descriptif des variables quantitatives") %>% kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+
+
+```
+
+
+
+### 2.4.2 Variables qualitatives
+```{r}
+tab_sexe = cbind( t(t(table(Sexe = retinol$sexe))) , 
+                  round(t(t(prop.table(table(retinol$sexe))))*100 ,2) )
+tab_tabac = cbind( t(t(table(retinol$tabac))) , 
+                   round(t(t(prop.table(table(retinol$tabac))))*100 ,2) )
+tab_vitamine = cbind( t(t(table(retinol$vitamine))) , 
+                      round(t(t(prop.table(table(retinol$vitamine)))*100 ),2) )
+desc_var_qual = rbind(tab_sexe,tab_tabac,tab_vitamine)
+```
+```{r}
+kable(desc_var_qual, caption = "Tableau descriptif des variables qualitatives", 
+      col.names = c("N","%")) %>% 
+  pack_rows("Sexe", 1, 2, bold = T) %>% 
+  pack_rows("Tabac", 3, 5, bold = T) %>% 
+  pack_rows("Vitamins", 6, 8, bold = T) %>% 
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+
+```
+
+# 3. Question 1: Description des variables
+
+On peut distinguer deux groupes de variables : 
+
+* Celui des variables décrivant le style de vie des individus, composé de l'`âge`, du `sexe`, du `bmi`, du statut tabagique (`tabac`) et de la consommation d'alcool hebdomadaire (`alcool`).
+* Celui des variables relatives à l'alimentation: les `vitamines`, les `calories`, les `graisses`, les `fibres`, le `cholesterol`, le bêta-carosène consommé (`betadiet`), le rétinol consommé (`retdiet`), le bêta-carosène plasmatique (`betaplasma`) et le rétinol plasmatique (`retplasma`).
+
+Pour les variables quantitatives, il est intéressant de ragarder leur distribution ainsi que l'adéquation de ces dernière à des lois gaussiennes.
+Pour les variables qualitatives, on fait des barplot sur le pourcentage d'individus dans chacune des classes.
+
+## 3.1 Variables de style de vie
+
+```{r, out.width='75%'}
+par(mfrow = c(1,2))
+hist(retinol$age, main = "Histogramme de l'âge", col = "#5DA5DA" )
+qqnorm(retinol$age); qqline(retinol$age, col = "#5DA5DA")
+```
+```{r, out.width='75%'}
+par(mfrow = c(1,2))
+hist(retinol$bmi, main = "Indice de masse corporelle", col = "#60BD68" )
+qqnorm(retinol$bmi); qqline(retinol$bmi, col = "#60BD68")
+```
+```{r, out.width='75%'}
+par(mfrow = c(1,2))
+hist(retinol$alcool, main = "Consommation d'alcool", col = "#F15854" )
+qqnorm(retinol$alcool); qqline(retinol$alcool, col = "#F15854")
+```
+```{r, out.width='75%'}
+par(mfrow = c(1,2))
+barplot(prop.table(table(retinol$sexe, useNA = "ifany"))*100, main = "Sexe",
+        col = brewer.pal(n = 3, name = "Pastel1"))
+barplot(prop.table(table(retinol$tabac, useNA = "ifany"))*100, main = "Statut tabagique", 
+        col = brewer.pal(n = 3, name = "Pastel1"))
+
+```
+
+## Variables d'habitudes alimentaires
+
+
+```{r, out.width='75%'}
+par(mfrow = c(1,2))
+hist(retinol$calories, main = "Calories journalières", col =  "yellow")
+qqnorm(retinol$calories); qqline(retinol$calories, col = "yellow")
+```
+
+```{r, out.width='75%'}
+par(mfrow = c(1,2))
+hist(retinol$graisses, main = "Graisses (g/jour)°", col = "orange")
+qqnorm(retinol$graisses); qqline(retinol$graisses, col = "orange")
+```
+```{r, out.width='75%'}
+par(mfrow = c(1,2))
+hist(retinol$fibres, main = "Fibres (g/jour)", col = "brown")
+qqnorm(retinol$fibres); qqline(retinol$fibres, col = "brown")
+```
+```{r, out.width='75%'}
+par(mfrow = c(1,2))
+hist(retinol$cholesterol, main = "Cholesterol (mg/jour)", col = "green")
+qqnorm(retinol$cholesterol); qqline(retinol$cholesterol, col = "green")
+```
+```{r, out.width='75%'}
+par(mfrow = c(1,2))
+hist(retinol$betadiet, main = "Bêta-carotène consommé (mcg/jour)", col = "purple")
+qqnorm(retinol$betadiet); qqline(retinol$betadiet, col = "purple")
+```
+```{r, out.width='75%'}
+par(mfrow = c(1,2))
+hist(retinol$retdiet, main = "Rétinol consommé (mcg/jour)", col = "pink")
+qqnorm(retinol$retdiet); qqline(retinol$retdiet, col = "pink")
+```
+```{r, out.width='75%'}
+par(mfrow = c(1,2))
+hist(retinol$betaplasma, main = "Bêta-carotène plasmatique (mcg/jour)", col = "steelblue")
+qqnorm(retinol$betaplasma); qqline(retinol$betaplasma, col = "steelblue")
+```
+```{r, out.width='75%'}
+par(mfrow = c(1,2))
+hist(retinol$retplasma, main = "Rétinol plasmatique (mcg/jour)", col = "red")
+qqnorm(retinol$retplasma); qqline(retinol$retplasma, col = "red")
+```
+```{r, out.width='75%'}
+barplot(prop.table(table(retinol$vitamine, useNA = "ifany"))*100, main = "Consommation de vitamines", col = brewer.pal(n = 3, name = "Pastel1"))
+
+```
+
+
+# 4. Question 2 : Etude des relations entre toutes les variables
+
+
+## 4.1 Relations entre les variables quantitatives
+
+En premier lieu, regardons la forme des nuages de points formés par les paires de variables quantitatives.
+
+
+```{r, ,out.width='80%'}
+ggpairs(retinol[,c(1,4,6:14)], progress = F)
+```
+
+On remarque notemment une relation linéaire positive trés marquée entre les calories et les graisses avec une corrélation de de $0.872$.
+De même on constate un lien entre les calories et le cholestérol comme en témoigne le nuage de points correspondant et la corrélation à $0.659$.
+On observe encorre un lien fort enntre le cholesterol et les graisses.
+
+Enfin, remarquons qu'une grande partie des corélations entre variables quantitatives sont faibles. 
+
+Quelles sont les corrélations que l'on peut considerer comme nulles ?
+A l'aie d'une fonction assez simple, on peut afficher la matrice des pvaleur du test de corrélation pour la corrélation de chaque paire de variables.
+
+```{r}
+cor.test.matrix = function(m) {
+  # On force le tpe de m en matrix
+    m = as.matrix(m)
+    # on définie une matrice de taille (nbr_var_m, nbr_var_m) que l'on remplie de NA
+    m_pv = matrix(NA, ncol(m), ncol(m)) 
+    # La diagonale de la matrice est 0 
+    diag(m_pv) = 0
+    for (i in 1:(ncol(m) - 1)) {
+        for (j in (i + 1):ncol(m)) {
+            tmp = cor.test(m[, i], m[, j])
+            m_pv[i, j] = m_pv[j, i] = tmp$p.value
+        }
+    }
+  colnames(m_pv) = rownames(m_pv) = colnames(m)
+  m_pv
+}
+```
+On applique la fonction précédente à nos variables quantitatives puis on on affiche un corrplot de toutes les corrélations possibles où les corrélations significativement nulles sont indiquées par une croix.
+```{r}
+pv_m = cor.test.matrix(retinol[c(1,4,6:14)])
+corr.res = cor(retinol[c(1,4,6:14)])
+```
+```{r, out.width='65%'}
+corrplot(corr = corr.res,
+         type = "lower", 
+         diag=FALSE,
+         p.mat = pv_m,
+         tl.col = "steelblue", tl.srt = 30
+         )
+```
+
+## 4.2 Liens entre variables qualitatives
+Pour montrer les liens entre deux varibles qualitatives, on fait des tests du $\chi^2$ de Pearson en vérifiant au préalable que lorsqu'on croise deux variables, chaque sous groupe contient au moins 5 individus.
+
+
+
+```{r}
+tabac_sexe = chisq.test(retinol$tabac, retinol$sexe) 
+sexe_vitamine = chisq.test(retinol$sexe, retinol$vitamine) 
+vitamine_tabac = chisq.test(retinol$vitamine, retinol$tabac)
+tab_chisq = matrix(c(round(tabac_sexe$statistic,2),
+                   round(sexe_vitamine$statistic,2),
+                   round(vitamine_tabac$statistic,2),
+               tabac_sexe$parameter,
+               sexe_vitamine$parameter,
+               vitamine_tabac$parameter,
+               round(tabac_sexe$p.value,3),
+               round(sexe_vitamine$p.value, 3),
+               round(vitamine_tabac$p.value, 3)),
+             ncol = 3)
+rownames(tab_chisq) = c("Tabac et Sexe","Sexe et Vitamines","Vitamines et Tabac")
+kable(tab_chisq, 
+      caption = "Test du Chi 2 de Pearson", 
+      col.names = c("Statistique","ddl","P-value")) %>% 
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+
+```
+
+## 4.3 Lien variables qualitatives et quantitatives
+
+### 4.3.1 Avec le sexe
+```{r, out.width='75%'}
+par(mfrow=c(1,3))
+boxplot(retinol$age ~ retinol$sexe, 
+        col = c("orange", "steelblue"), main = "Âge et sexe")
+boxplot(retinol$bmi ~ retinol$sexe, 
+        col = c("orange", "steelblue"), main = "BMI et sexe")
+boxplot(retinol$calorie ~ retinol$sexe, 
+        col = c("orange", "steelblue"), main = "Calories et sexe")
+```
+```{r, out.width='75%'}
+par(mfrow=c(1,3))
+boxplot(retinol$graisses ~ retinol$sexe, 
+        col = c("orange", "steelblue"), main = "Graisses et sexe")
+boxplot(retinol$fibres ~ retinol$sexe, 
+        col = c("orange", "steelblue"), main = "Fibres et sexe")
+boxplot(retinol$alcool ~ retinol$sexe, 
+        col = c("orange", "steelblue"), main = "Alcool et sexe")
+```
+```{r, out.width='75%'}
+par(mfrow=c(1,3))
+boxplot(retinol$cholesterol ~ retinol$sexe, 
+        col = c("orange", "steelblue"), main = "Cholesterol et sexe")
+boxplot(retinol$betadiet ~ retinol$sexe, 
+        col = c("orange", "steelblue"), main = "Bêta-carotène et sexe")
+boxplot(retinol$retdiet ~ retinol$sexe, 
+        col = c("orange", "steelblue"), main = "Retinol et sexe")
+```
+
+Les variables `âge`, `graisses` et `cholesterol` semblent dépendre du `sexe`. Pour vérifier que la différence entre les hommes et les femmes est significative pour ces 3 variables on fait des tests de student:
+
+* Âge-sexe
+
+Conditions de validité :
+```{r, out.width= '75%'}
+par(mfrow = c(1,2))
+hist(retinol$age, main = "", xlab = "Âge")
+qqnorm(retinol$age); qqline(retinol$age)
+```
+
+
+La varaible `age` a une allure à peu prés Gaussienne. On peut également vérifier que le nombre d'individus dans chaque sous groupe est superieur à 5:
+
+
+```{r}
+kable(table(retinol$sexe), caption = "Sexe", col.names = c(" ","n"))
+```
+
+Vérifions à présent l'égalité des variances de l'âge chez les hommes et chez les femmes:
+
+
+```{r}
+kable(as.table(by(retinol$age, retinol$sexe, FUN = function(x){var(x)})), 
+      col.names = c("Sous-groupe", "Variance"),
+      caption = "Egalité des variances")
+```
+
+On peut considérer l'égalité des variances:
+
+```{r}
+test_stu1 = matrix(c(round(t.test(retinol$age ~ retinol$sexe, var.equal = T)$statistic,2),
+              t.test(retinol$age ~ retinol$sexe, var.equal = T)$parameter,
+              t.test(retinol$age ~ retinol$sexe, var.equal = T)$p.value),
+              ncol = 3)
+kable(test_stu1, caption = "Test de student entre l'âge et le sexe",
+     col.names = c("Statistique", "ddl","p-value"))
+```
+
+La p-valeur est trés inférieure à $5 \%$, il y a donc une différence significative entre la moyenne d'âge des hommes et celle des femmes.
+
+* Cholesterol-sexe
+
+Conditions de validité :
+```{r}
+par(mfrow = c(1,2))
+hist(retinol$cholesterol, main = "", 
+     xlab = "Chelesterol")
+qqnorm(retinol$cholesterol); qqline(retinol$cholesterol);
+```
+
+
+La varaible `cholesterol` n'est clairement pas normale mais comme vu précedemment il y au moins 30 hommes et 30 femmes dans le jeu de données donc la première condition de validité est vérifiée.
+Contrôlons à présent l'égalité des variances:
+
+```{r}
+kable(as.table(by(retinol$cholesterol, retinol$sexe, FUN = function(x){var(x)})), 
+      col.names = c("Sous-groupe", "Variance"), 
+      caption = "Egalité des variances") 
+```
+
+```{r}
+test_stu2 = matrix(c(
+  round(t.test(retinol$cholesterol ~ retinol$sexe, var.equal = T)$statistic,2),
+  t.test(retinol$cholesterol ~ retinol$sexe, var.equal = T)$parameter,
+  t.test(retinol$cholesterol ~ retinol$sexe, var.equal = T)$p.value),
+              ncol = 3)
+kable(test_stu2, caption = "Test de student entre le cholesterol et le sexe",
+     col.names = c("Statistique", "ddl","p-value"))
+```
+
+
+
+Cette fois encore le test de student non indique une différence significative entre la moyenne de cholesterol chez les femmes et chez les hommes.
+
+* Graisse-sexe
+
+Conditions de validité :
+```{r}
+par(mfrow = c(1,2))
+hist(retinol$graisses, xlab = "Graisses", main = "")
+qqnorm(retinol$graisses); qqline(retinol$graisses);
+```
+
+La variable `graisses` a une allure normale. Vérifions l'égalité des variances dans les deux groupes: 
+
+```{r}
+kable(as.table(by(retinol$graisses, retinol$sexe, FUN = function(x){var(x)})), 
+      col.names = c("Sous-groupe", "Variance"), caption = "Egalité des variances") 
+```
+
+On peut considérer l'égalité:
+```{r}
+test_stu3 = matrix(c(round(t.test(retinol$graisses ~ retinol$sexe, var.equal = T)$statistic,2),
+              t.test(retinol$graisses ~ retinol$sexe, var.equal = T)$parameter,
+              t.test(retinol$graisses ~ retinol$sexe, var.equal = T)$p.value),
+              ncol = 3)
+kable(test_stu3, caption = "Test de student entre les graisses et le sexe",
+     col.names = c("Statistique", "ddl","p-value"))
+```
+
+### 4.3.2 Avec le tabac
+
+
+```{r}
+par(mfrow=c(1,2))
+boxplot(retinol$age ~ retinol$tabac, 
+        col = c("brown", "darkgreen","orange"), 
+        main = "Âge et tabac")
+boxplot(retinol$bmi ~ retinol$tabac, 
+        col = c("brown", "darkgreen","orange"), 
+        main = "BMI et tabac")
+
+par(mfrow=c(1,2))
+boxplot(retinol$calorie ~ retinol$tabac, 
+        col = c("brown", "darkgreen","orange"), 
+        main = "Calories et tabac")
+boxplot(retinol$graisses ~ retinol$tabac, 
+        col = c("brown", "darkgreen","orange"),
+        main = "Graisses et tabac")
+
+par(mfrow=c(1,2))
+boxplot(retinol$fibres ~ retinol$tabac, 
+        col = c("brown", "darkgreen","orange"), 
+        main = "Fibres et tabac")
+boxplot(retinol$alcool ~ retinol$tabac, 
+        col = c("brown", "darkgreen","orange"), 
+        main = "Alcool et tabac")
+
+par(mfrow = c(1,2))
+boxplot(retinol$cholesterol ~ retinol$tabac, 
+        col = c("brown", "darkgreen","orange"), 
+        main = "Cholesterol et tabac")
+boxplot(retinol$betadiet ~ retinol$tabac, 
+        col = c("brown", "darkgreen","orange"), 
+        main = "Bêta-carotène et tabac")
+
+par(mfrow=c(1,3))
+boxplot(retinol$retdiet ~ retinol$tabac, 
+        col = c("brown", "darkgreen","orange"), 
+        main = "Retinol et tabac")
+boxplot(retinol$betaplasma ~ retinol$tabac, 
+        col = c("brown", "darkgreen","orange"), 
+        main = "Bêta-carotène plasmatique et tabac")
+boxplot(retinol$retplasma ~ retinol$tabac, 
+        col = c("brown", "darkgreen","orange"), 
+        main = "Retinol plasmatique et tabac")
+```
+
+Le tabac est une variable catégorielle à 3 classes, on ne peut donc pas faire de t-test pour comparer les moyennes des vraibles quantitatives dans chacune de ces 3 classes. Nous allons effectuer des ANOVA à un facteurpour chacune des variables quantitatives.
+La plupart des variables quantitatives ont une distribution normale. Cepedant pour celles qui ne vérifient pas cette propriété on peut vérifier que dans chacune des trois classes de la variable tabac il y a plus de 30 individus:
+
+```{r}
+kable(table(retinol$tabac), caption = "Tabac", col.names = c())
+```
+```{r}
+var = c("age","bmi","calories","graisses","fibres","alcool","cholesterol","betadiet","retdiet")
+for(j in 1:length(var)){
+for(v in var[j]){
+  cat("*Variable:", v, "\n")
+  cat("-> Vérification homoscedaticité: \n")
+  cat("\t",by(retinol[,v], retinol$tabac, function(x){var(x)}), "\n")
+  cat("-> P-valeur de l'anova: \n")
+  cat("\t",anova(lm(retinol[,v] ~ tabac, data = retinol))$`Pr(>F)`[1],"\n")
+  if(anova(lm(retinol[,v] ~ tabac, data = retinol))$`Pr(>F)`[1] < 0.05){cat("\t -> SIGNIFICATIF \n \n")}
+  else
+    {cat("\t -> NON SIGNIFICATIF \n \n")}
+  }}
+rm(v)
+rm(j)
+rm(var)
+```
+
+Petit bémol: l'égalité des variances n'est pas toujours respéctée, notemment pour les variables `calories` et `alcool` Il vaut mieux dans ce cas utiliser un autre test pour ces deux variables:
+
+
+
+
+
+### 4.3.3 Avec les vitamines
+```{r}
+par(mfrow=c(1,2))
+boxplot(retinol$age ~ retinol$vitamine, 
+        col = c("pink", "purple","yellow"), 
+        main = "Âge et vitamine")
+boxplot(retinol$bmi ~ retinol$vitamine, 
+        col = c("pink", "purple","yellow"),
+        main = "BMI et vitamine")
+
+par(mfrow=c(1,2))
+boxplot(retinol$calorie ~ retinol$vitamine, 
+        col = c("pink", "purple","yellow"), 
+        main = "Calories et vitamine")
+
+par(mfrow=c(1,2))
+boxplot(retinol$graisses ~ retinol$vitamine, 
+        col = c("pink", "purple","yellow"), 
+        main = "Graisses et vitamine")
+boxplot(retinol$fibres ~ retinol$vitamine, 
+        col = c("pink", "purple","yellow"), 
+        main = "Fibres et vitamine")
+
+par(mfrow=c(1,2))
+boxplot(retinol$alcool ~ retinol$vitamine, 
+        col = c("pink", "purple","yellow"), 
+        main = "Alcool et vitamine")
+
+par(mfrow = c(3,2))
+boxplot(retinol$cholesterol ~ retinol$vitamine, 
+        col = c("pink", "purple","yellow"), 
+        main = "Cholesterol et vitamine")
+boxplot(retinol$betadiet ~ retinol$vitamine, 
+        col = c("pink", "purple","yellow"), 
+        main = "Bêta-carotène et vitamine")
+boxplot(retinol$retdiet ~ retinol$vitamine, 
+        col = c("pink", "purple","yellow"), 
+        main = "Retinol et vitamine")
+boxplot(retinol$betaplasma ~ retinol$vitamine, 
+        col = c("pink", "purple","yellow"), 
+        main = "Bêta-carotène plasmatique et vitamine")
+boxplot(retinol$retplasma ~ retinol$vitamine, 
+        col = c("pink", "purple","yellow"), 
+        main = "Retinol plasmatique et vitamine")
+```
+
+On procède de la même manière qu'avec le tabac : analyse de la variance à 1 facteur.
+```{r}
+table(Vitamines = retinol$vitamine)
+```
+
+
+```{r}
+var = c("age","bmi","calories","graisses","fibres","alcool","cholesterol","betadiet","retdiet")
+for(j in 1:length(var)){
+for(v in var[j]){
+  cat("*Variable:", v, "\n")
+  cat("-> Vérification homoscedaticité: \n")
+  cat("\t",by(retinol[,v], retinol$vitamine, function(x){var(x)}), "\n")
+  cat("-> P-valeur de l'anova: \n")
+  cat("\t",anova(lm(retinol[,v] ~ vitamine, data = retinol))$`Pr(>F)`[1],"\n")
+  if(anova(lm(retinol[,v] ~ vitamine, data = retinol))$`Pr(>F)`[1] < 0.05){
+    cat("\t -> SIGNIFICATIF \n \n")}
+  else
+    {cat("\t -> NON SIGNIFICATIF \n \n")}
+  }}
+rm(v)
+rm(j)
+rm(var)
+```
+
+# 5. Question 3 : Régression linéaire 
+
+Effectuez ensuite une régression linéaire où la variable à expliquer sera la concentration en rétinol plasmatique, les autres variables étant explicatives. Recherchez des interactions entre les variables explicatives.
+
+## 5.1 Analyse en Composantes Principales focalisée
+La première chose que l'on peut faire pour y voir clair est une ACP focalisée pour visualiser les liens entre varaibles explicatives.
+
+```{r}
+expliquer = "retplasma"
+explicative = colnames(retinol)[1:13]
+fpca(data = retinol, y = expliquer, x = explicative, partial = "NO")
+```
+
+## 5.2 Modèle sans interactions
+
+### 5.2.1 Modèle
+
+On fait un premier modèle sans interactions pour comprendre ce qui se passe.
+```{r}
+reg_lin = lm(retplasma ~ . -retplasma , data = retinol)
+kable(round(xtable(reg_lin),3), caption = "Régression linéaire multiple") %>% 
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+```
+### 5.2.2 Diagnostique
+```{r}
+par(mfrow = c(2,3))
+plot(reg_lin, which = 1:6)
+```
+```{r, out.width = '75%'}
+hist(resid(reg_lin), 
+     main = "Histogramme des résidus de la regression linéaire sans interactions", 
+     xlab = "", col = "steelblue")
+```
+
+## 5.3 Tests de toutes les interactions possibles
+### 5.3.1 Interaction avec l'âge
+```{r}
+mod.tmp = lm(retplasma ~ . -retplasma + age*retinol[,"sexe"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre âge et sexe",
+      col.names = c("", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp,which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+```
+```{r}
+mod.tmp = lm(retplasma ~ . -retplasma + age*retinol[,"tabac"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre âge et tabac",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+```
+```{r}
+
+mod.tmp = lm(retplasma ~ . -retplasma + age*retinol[,"bmi"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre âge et bmi",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+```
+```{r}
+mod.tmp = lm(retplasma ~ . -retplasma + age*retinol[,"vitamine"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre âge et vitamine",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+```
+```{r}
+mod.tmp = lm(retplasma ~ . -retplasma + age*retinol[,"calories"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre âge et calories",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+```
+```{r}
+mod.tmp = lm(retplasma ~ . -retplasma + age*retinol[,"graisses"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre âge et graisses",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+```
+```{r}
+mod.tmp = lm(retplasma ~ . -retplasma + age*retinol[,"fibres"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre âge et fibres",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+```
+```{r}
+mod.tmp = lm(retplasma ~ . -retplasma + age*retinol[,"alcool"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre âge et alcool",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+```
+```{r}
+mod.tmp = lm(retplasma ~ . -retplasma + age*retinol[,"cholesterol"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre âge et cholesterol",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+```
+```{r}
+mod.tmp = lm(retplasma ~ . -retplasma + age*retinol[,"betadiet"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre âge et betadiet",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+```
+```{r}
+mod.tmp = lm(retplasma ~ . -retplasma + age*retinol[,"retdiet"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre âge et retdiet",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+```
+```{r}
+mod.tmp = lm(retplasma ~ . -retplasma + age*retinol[,"betaplasma"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre âge et betaplasma",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+```
+
+La seule interaction observée est celle entre l'âge et l'alcool
+
+
+### 5.3.2 Avec le sexe
+```{r}
+mod.tmp = lm(retplasma ~ . -retplasma + sexe*retinol[,"tabac"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre sexe et tabac",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+```
+```{r}
+mod.tmp = lm(retplasma ~ . -retplasma + sexe*retinol[,"bmi"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre sexe et bmi",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+```
+```{r}
+mod.tmp = lm(retplasma ~ . -retplasma + sexe*retinol[,"vitamine"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre sexe et vitamine",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+```
+```{r}
+mod.tmp = lm(retplasma ~ . -retplasma + sexe*retinol[,"calories"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre sexe et calories",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+```
+```{r}
+mod.tmp = lm(retplasma ~ . -retplasma + sexe*retinol[,"graisses"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre sexe et graisses",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+```
+```{r}
+mod.tmp = lm(retplasma ~ . -retplasma + sexe*retinol[,"fibres"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre sexe et fibres",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+```
+```{r}
+mod.tmp = lm(retplasma ~ . -retplasma + sexe*retinol[,"alcool"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre sexe et alcool",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+```
+```{r}
+mod.tmp = lm(retplasma ~ . -retplasma + sexe*retinol[,"cholesterol"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre sexe et cholesterol",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+```
+```{r}
+mod.tmp = lm(retplasma ~ . -retplasma + sexe*retinol[,"betadiet"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre sexe et betadiet",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+```
+```{r}
+
+mod.tmp = lm(retplasma ~ . -retplasma + sexe*retinol[,"retdiet"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre sexe et retdiet",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+```
+```{r}
+mod.tmp = lm(retplasma ~ . -retplasma + sexe*retinol[,"betaplasma"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre sexe et betaplasma",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+```
+
+Interration avec :`tabac`,  `calories`, `vitamines`, `alcool`, `cholesterol` et `betaplasma`.
+
+
+### 5.3.3 Avec le tabac
+```{r}
+mod.tmp = lm(retplasma ~ . -retplasma + tabac*retinol[,"bmi"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre tabac et bmi",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = lm(retplasma ~ . -retplasma + tabac*retinol[,"vitamine"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre tabac et vitamine",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = lm(retplasma ~ . -retplasma + tabac*retinol[,"calories"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre tabac et calories",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = lm(retplasma ~ . -retplasma + tabac*retinol[,"graisses"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre tabac et graisses",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = lm(retplasma ~ . -retplasma + tabac*retinol[,"fibres"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre tabac et fibres",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = lm(retplasma ~ . -retplasma + tabac*retinol[,"alcool"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre tabac et alcool",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = lm(retplasma ~ . -retplasma + tabac*retinol[,"cholesterol"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre tabac et cholesterol",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = lm(retplasma ~ . -retplasma + tabac*retinol[,"betadiet"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre tabac et betadiet",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = lm(retplasma ~ . -retplasma + tabac*retinol[,"retdiet"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre tabac et retdiet",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = lm(retplasma ~ . -retplasma + tabac*retinol[,"betaplasma"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre tabac et betaplasma",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+```
+
+Pas d'interactions avec le tabac (sauf `bmi` limite).
+
+### 5.3.4 Avec le bmi
+
+```{r}
+mod.tmp = lm(retplasma ~ . -retplasma + bmi*retinol[,"vitamine"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre bmi et vitamine",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = lm(retplasma ~ . -retplasma + bmi*retinol[,"calories"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre bmi et calories",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = lm(retplasma ~ . -retplasma + bmi*retinol[,"graisses"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre bmi et graisses",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = lm(retplasma ~ . -retplasma + bmi*retinol[,"fibres"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre bmi et fibres",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = lm(retplasma ~ . -retplasma + bmi*retinol[,"alcool"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre bmi et alcool",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = lm(retplasma ~ . -retplasma + bmi*retinol[,"cholesterol"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre bmi et cholesterol",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = lm(retplasma ~ . -retplasma + bmi*retinol[,"betadiet"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre bmi et betadiet",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = lm(retplasma ~ . -retplasma + bmi*retinol[,"retdiet"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre bmi et retdiet",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = lm(retplasma ~ . -retplasma + bmi*retinol[,"betaplasma"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre bmi et betaplasma",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+```
+Interactions avec `alcool` et `betadiet`.
+
+### 5.3.5 Avec vitamines
+
+```{r}
+mod.tmp = lm(retplasma ~ . -retplasma + vitamine*retinol[,"calories"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre vitamine et calories",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = lm(retplasma ~ . -retplasma + vitamine*retinol[,"graisses"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre vitamine et graisses",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = lm(retplasma ~ . -retplasma + vitamine*retinol[,"fibres"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre vitamine et fibres",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = lm(retplasma ~ . -retplasma + vitamine*retinol[,"alcool"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre vitamine et alcool",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = lm(retplasma ~ . -retplasma + vitamine*retinol[,"cholesterol"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre vitamine et cholesterol",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = lm(retplasma ~ . -retplasma + vitamine*retinol[,"betadiet"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre vitamine et betadiet",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = lm(retplasma ~ . -retplasma + vitamine*retinol[,"retdiet"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre vitamine et retdiet",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = lm(retplasma ~ . -retplasma + vitamine*retinol[,"betaplasma"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre vitamine et betaplasma",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+```
+### 5.3.6 Avec les calories
+```{r}
+mod.tmp = lm(retplasma ~ . -retplasma + calories*retinol[,"graisses"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre calories et graisses",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = lm(retplasma ~ . -retplasma + calories*retinol[,"fibres"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre calories et fibres",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = lm(retplasma ~ . -retplasma + calories*retinol[,"alcool"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre calories et alcool",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = lm(retplasma ~ . -retplasma + calories*retinol[,"cholesterol"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre calories et cholesterol",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = lm(retplasma ~ . -retplasma + calories*retinol[,"betadiet"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre calories et betadiet",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = lm(retplasma ~ . -retplasma + calories*retinol[,"retdiet"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre calories et retdiet",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = lm(retplasma ~ . -retplasma + calories*retinol[,"betaplasma"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre calories et betaplasma",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+```
+### 5.3.7 Avec les graisses
+```{r}
+mod.tmp = lm(retplasma ~ . -retplasma + graisses*retinol[,"fibres"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre graisses et fibres",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = lm(retplasma ~ . -retplasma + graisses*retinol[,"alcool"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre graisses et alcool",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = lm(retplasma ~ . -retplasma + graisses*retinol[,"cholesterol"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre graisses et cholesterol",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = lm(retplasma ~ . -retplasma + graisses*retinol[,"betadiet"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre graisses et betadiet",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = lm(retplasma ~ . -retplasma + graisses*retinol[,"retdiet"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre graisses et retdiet",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = lm(retplasma ~ . -retplasma + graisses*retinol[,"betaplasma"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre graisses et betaplasma",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+```
+### 5.3.8 Avec les fibres
+
+```{r}
+mod.tmp = lm(retplasma ~ . -retplasma + fibres*retinol[,"alcool"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre fibres et alcool",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = lm(retplasma ~ . -retplasma + fibres*retinol[,"cholesterol"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre fibres et cholesterol",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = lm(retplasma ~ . -retplasma + fibres*retinol[,"betadiet"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre fibres et betadiet",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = lm(retplasma ~ . -retplasma + fibres*retinol[,"retdiet"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre fibres et retdiet",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = lm(retplasma ~ . -retplasma + fibres*retinol[,"betaplasma"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre fibres et betaplasma",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+```
+### 5.3.9 Avec l'alcool
+```{r}
+mod.tmp = lm(retplasma ~ . -retplasma + alcool*retinol[,"cholesterol"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre alcool et cholesterol",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = lm(retplasma ~ . -retplasma + alcool*retinol[,"betadiet"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre alcool et betadiet",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = lm(retplasma ~ . -retplasma + alcool*retinol[,"retdiet"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre alcool et retdiet",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = lm(retplasma ~ . -retplasma + alcool*retinol[,"betaplasma"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre alcool et betaplasma",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+```
+### 5.3.10 Avec le cholesterol
+```{r}
+mod.tmp = lm(retplasma ~ . -retplasma + cholesterol*retinol[,"betadiet"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre cholesterol et betadiet",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = lm(retplasma ~ . -retplasma + cholesterol*retinol[,"retdiet"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre cholesterol et retdiet",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = lm(retplasma ~ . -retplasma + cholesterol*retinol[,"betaplasma"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre cholesterol et betaplasma",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+```
+
+### 5.3.11 Avec le béta-carotène
+```{r}
+mod.tmp = lm(retplasma ~ . -retplasma + betadiet*retinol[,"retdiet"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre betadiet et retdiet",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = lm(retplasma ~ . -retplasma + betadiet*retinol[,"betaplasma"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre betadiet et betaplasma",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+```
+
+### 5.3.12 Avec retdiet
+```{r}
+mod.tmp = lm(retplasma ~ . -retplasma + retdiet*retinol[,"betaplasma"], data = retinol)
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(summary(mod.tmp)$coefficient[,1],3),
+                  paste0("[",round(summary(mod.tmp)$coefficient[,2],3),";",
+                         round(summary(mod.tmp)$coefficient[,3],3), "]"),
+                         round(summary(mod.tmp)$coefficient[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre retdiet et betaplasma",col.names = c(" ", "Bêta", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+```
+
+# 6. Question 4 : Regresion logistique
+
+## 6.1 Binarisation
+
+Transformez la variable "rétinol plasmatique" en une variable binaire (en la coupant en deux au niveau de la médiane). Refaites les calculs précédents en ayant recours cette fois à une régression logistique.
+```{r}
+retinol$retplasmaBin = retplasmaBin = ifelse(retinol$retplasma <= median(retinol$retplasma), 0, 1)
+table(retinol$retplasmaBin)
+```
+
+
+### 6.2.2 Conditions de validité
+On vérifie qu'il y a assez d'événement dans la variable à expliquer pour le nombre de variables du dataset:
+
+```{r}
+table("Rétinol plasmatique binarisé" = retinol$retplasmaB)
+```
+Il y a 156 évenements.
+
+Liste des variables:
+ * age : quantitative donc compte pour 1
+ * sexe : catégorielle à 2 classes donc compte pour 2-1 = 1
+ * tabac : vatégorielle à 3 classes donc compte pour 3-1 = 2
+ * bmi : quantitative donc compte pour 1
+ * vitamine : catégorielle à 3 classes donc compte pour 3-1 = 2
+ * calories : quantitative donc compte pour 1
+ * graisses : quantitative donc compte pour 1
+ * fibres : quantitative donc compte pour 1
+ * alcool : quantitative donc compte pour 1
+ * cholesterol : quantitative donc compte pour 1
+ * betadiet : quantitative donc compte pour 1
+ * retdiet : quantitative donc compte pour 1
+ * betaplasma : quantitative donc compte pour 1
+ 
+On a $10(1+1+2+1+2+1+1+1+1+1+1+1+1) = 150 < 156$
+
+## 6.3 Tests de toutes les interactions possibles
+### 6.3.1 Interaction avec l'âge
+```{r}
+mod.tmp = glm(retplasmaBin ~ . -retplasma + age*retinol[,"sexe"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre age et sexe",
+      col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + age*retinol[,"tabac"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre age et tabac",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + age*retinol[,"bmi"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre age et bmi",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + age*retinol[,"vitamine"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre age et vitamine",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + age*retinol[,"calories"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre age et calories",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + age*retinol[,"graisses"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre age et graisses",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + age*retinol[,"fibres"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre age et fibres",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + age*retinol[,"alcool"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre age et alcool",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + age*retinol[,"cholesterol"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre age et cholesterol",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + age*retinol[,"betadiet"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre age et betadiet",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + age*retinol[,"retdiet"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre age et retdiet",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + age*retinol[,"betaplasma"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre age et betaplasma",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+```
+### 6.3.2 Interaction avec le sexe
+```{r}
+mod.tmp = glm(retplasmaBin ~ . -retplasma + sexe*retinol[,"tabac"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre sexe et tabac",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + sexe*retinol[,"bmi"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre sexe et bmi",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + sexe*retinol[,"vitamine"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre sexe et vitamine",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + sexe*retinol[,"calories"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre sexe et calories",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + sexe*retinol[,"graisses"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre sexe et graisses",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + sexe*retinol[,"fibres"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre sexe et fibres",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + sexe*retinol[,"alcool"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre sexe et alcool",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + sexe*retinol[,"cholesterol"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre sexe et cholesterol",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + sexe*retinol[,"betadiet"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre sexe et betadiet",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + sexe*retinol[,"retdiet"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre sexe et retdiet",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + sexe*retinol[,"betaplasma"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre sexe et betaplasma",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+```
+### 6.3.3 Interaction avec le tabac
+```{r}
+mod.tmp = glm(retplasmaBin ~ . -retplasma + tabac*retinol[,"bmi"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre tabac et bmi",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + tabac*retinol[,"vitamine"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre tabac et vitamine",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + tabac*retinol[,"calories"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre tabac et calories",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + tabac*retinol[,"graisses"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre tabac et graisses",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + tabac*retinol[,"fibres"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre tabac et fibres",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + tabac*retinol[,"alcool"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre tabac et alcool",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + tabac*retinol[,"cholesterol"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre tabac et cholesterol",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + tabac*retinol[,"betadiet"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre tabac et betadiet",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + tabac*retinol[,"retdiet"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre tabac et retdiet",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + tabac*retinol[,"betaplasma"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre tabac et betaplasma",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+```
+### 6.3.4 Interaction avec le bmi
+```{r}
+mod.tmp = glm(retplasmaBin ~ . -retplasma + bmi*retinol[,"vitamine"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre bmi et vitamine",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + bmi*retinol[,"calories"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre bmi et calories",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + bmi*retinol[,"graisses"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre bmi et graisses",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + bmi*retinol[,"fibres"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre bmi et fibres",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + bmi*retinol[,"alcool"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre bmi et alcool",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + bmi*retinol[,"cholesterol"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre bmi et cholesterol",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + bmi*retinol[,"betadiet"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre bmi et betadiet",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + bmi*retinol[,"retdiet"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre bmi et retdiet",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + bmi*retinol[,"betaplasma"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre bmi et betaplasma",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+```
+### 6.3.5 Interaction avec les vitamines
+```{r}
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + vitamine*retinol[,"calories"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre vitamine et calories",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + vitamine*retinol[,"graisses"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre vitamine et graisses",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + vitamine*retinol[,"fibres"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre vitamine et fibres",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + vitamine*retinol[,"alcool"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre vitamine et alcool",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + vitamine*retinol[,"cholesterol"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre vitamine et cholesterol",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + vitamine*retinol[,"betadiet"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre vitamine et betadiet",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + vitamine*retinol[,"retdiet"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre vitamine et retdiet",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + vitamine*retinol[,"betaplasma"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre vitamine et betaplasma",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+```
+
+### 6.3.6 Interaction avec les calories
+```{r}
+mod.tmp = glm(retplasmaBin ~ . -retplasma + calories*retinol[,"graisses"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre calories et graisses",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + calories*retinol[,"fibres"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre calories et fibres",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + calories*retinol[,"alcool"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre calories et alcool",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + calories*retinol[,"cholesterol"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre calories et cholesterol",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + calories*retinol[,"betadiet"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre calories et betadiet",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + calories*retinol[,"retdiet"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre calories et retdiet",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + calories*retinol[,"betaplasma"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre calories et betaplasma",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+```
+### 6.3.7 Interaction avec les graisses
+```{r}
+mod.tmp = glm(retplasmaBin ~ . -retplasma + graisses*retinol[,"fibres"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre graisses et fibres",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + graisses*retinol[,"alcool"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre graisses et alcool",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + graisses*retinol[,"cholesterol"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre graisses et cholesterol",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + graisses*retinol[,"betadiet"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre graisses et betadiet",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + graisses*retinol[,"retdiet"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre graisses et retdiet",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + graisses*retinol[,"betaplasma"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre graisses et betaplasma",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+```
+### 6.3.8 Interaction avec les fibres
+```{r}
+mod.tmp = glm(retplasmaBin ~ . -retplasma + fibres*retinol[,"alcool"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre fibres et alcool",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + fibres*retinol[,"cholesterol"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre fibres et cholesterol",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + fibres*retinol[,"betadiet"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre fibres et betadiet",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + fibres*retinol[,"retdiet"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre fibres et retdiet",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + fibres*retinol[,"betaplasma"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre fibres et betaplasma",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+```
+### 6.3.9 Interaction avec l'alcool
+```{r}
+mod.tmp = glm(retplasmaBin ~ . -retplasma + alcool*retinol[,"cholesterol"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre alcool et cholesterol",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + alcool*retinol[,"betadiet"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre alcool et betadiet",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + alcool*retinol[,"retdiet"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre alcool et retdiet",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + alcool*retinol[,"betaplasma"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre alcool et betaplasma",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+```
+### 6.3.10 Interaction avec le cholesterol
+```{r}
+mod.tmp = glm(retplasmaBin ~ . -retplasma + cholesterol*retinol[,"betadiet"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre cholesterol et betadiet",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + cholesterol*retinol[,"retdiet"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre cholesterol et retdiet",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + cholesterol*retinol[,"betaplasma"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre cholesterol et betaplasma",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+```
+### 6.3.11 Interaction avec betadiet
+```{r}
+mod.tmp = glm(retplasmaBin ~ . -retplasma + betadiet*retinol[,"retdiet"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre betadiet et retdiet",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+
+mod.tmp = glm(retplasmaBin ~ . -retplasma + betadiet*retinol[,"betaplasma"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre betadiet et betaplasma",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+```
+### 6.3.12 Interaction avec retdiet
+```{r}
+mod.tmp = glm(retplasmaBin ~ . -retplasma + retdiet*retinol[,"betaplasma"], 
+              data = retinol,family = "binomial")
+res.tmp = matrix(c(rownames(summary(mod.tmp)$coefficient),
+                   round(odds.ratio(mod.tmp)[,1],3),
+                  paste0("[",round(odds.ratio(mod.tmp)[,2],3),";",
+                         round(odds.ratio(mod.tmp)[,3],3), "]"),
+                         round(odds.ratio(mod.tmp)[,4],4)), ncol = 4 )
+kable(res.tmp, 
+      caption = "Régression linéaire multiple avec interraction entre retdiet et betaplasma",col.names = c(" ", "OR", "IC","p")) %>%
+  kable_styling(latex_options = "striped", stripe_color = "#BBD2E1")
+par(mfrow = c(2,3))
+plot(mod.tmp, which = 1:6)
+rm(mod.tmp)
+rm(res.tmp)
+```
+
+
+# 7. Ouverture, améliorations.
+
+Pour que l'analyse que nous venons d'effectuer aie plus de "sens", il faudrait commencer par repérer les valeurs aberrantes comme dans la variable `alcool`. D'ailleurs, une idée serit de catégiriser cette varaible en 3 classes : non-buveurs, buveurs modérés et buveurs. Cela pourait faciliter l'interprétation des résultats d'une régression (logistique ou linéaire).
+De plus, on pourrait être plus fins dans la recherche d'interactions entre varaibles explicatives en recherchant ce qui a du sens plutôt qu'en faisant une recherche systématique. Je ne l'ai aps fait car j'ai plusieurs fois lu que le but du devoir portait plus sur l'utilisation de R et des tests de régressions vues en cours que sur une réelle analyse du dataset.
+
+Bon courage à vous pour la correction.
+
+Cordialement, 
+
+Odélia Guedj
+
